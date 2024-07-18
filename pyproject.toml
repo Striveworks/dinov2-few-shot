@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "photography-anlysis"
+version = "0.1.0"
+description = "Various tools and applications to analyze my photography."
+authors = ["Jake Bauer <j.bauer@nazo.ai>"]
+license = "Apache 2.0"
+readme = "README.md"
+packages = [
+    { include = "photo_sampler", from = "src/py/apps" },
+    { include = "photo_encode", from = "src/py/libs" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pillow = "^10.4.0"
+jupyter = "^1.0.0"
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.10.1"
+pytest = "^8.2.2"
+black = "^24.4.2"
+
+[build-system]
+requires = ["poetry>=1.0.0"]
+build-backend = "poetry.masonry.api"
+
+[tool.poetry.scripts]
+my-script = "my_package.module:function"
