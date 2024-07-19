@@ -16,6 +16,9 @@ pillow = "^10.4.0"
 jupyter = "^1.0.0"
 llama-index = "^0.10.55"
 torch = "^2.3.1"
+llama-index-core = "^0.10.55"
+llama-index-embeddings-huggingface = "^0.2.2"
+faiss-cpu = "^1.8.0.post1"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.10.1"

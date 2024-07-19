@@ -1,7 +1,8 @@
 import torch
+import faiss
 
 from torch import nn
-from llama_index import LlamaIndex, Node
+from llama_index.core import VectorStoreIndex
 
 from typing import List
 
@@ -27,8 +28,10 @@ class LLaMAIndexImageEncoder(nn.Module):
           The configuration for the indexer
         """
         super().__init__()
-        self.index = LlamaIndex(nodes=[])
         self.index_file = llama_index_config["index_file"]
+        self.dimension = llama_index_config["embedding_dimension"]
+        self.index = faiss.IndexFlatL2(self.dimension)
+        self.vector_store_index = VectorStoreIndex(self.index)
 
     def forward(self, x: torch.Tensor, batch_files: List[str]):
         """
@@ -64,9 +67,4 @@ class LLaMAIndexImageEncoder(nn.Module):
         batch_files : List[str]
           The filenames for the images corresponding to each embedding
         """
-        nodes = [
-            Node(id=file_path, data=embeddings[i].numpy())
-            for i, file_path in enumerate(batch_files)
-        ]
-        self.index.nodes.extend(nodes)
-        self.index.save(self.index_file)
+        self.vector_store_index.add(embeddings.numpy())

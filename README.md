@@ -22,3 +22,10 @@ Reusable bits of Python code can be found in `src/py/libs`. Subdirectories are m
 ### Python Applications
 
 Things like FastAPI servers, dashboards, and other applications written in Python can be found in `src/py/apps`. Subdirectories are manually added to the `pyproject.toml` to form new packages.
+
+### Notebooks
+
+To run the notebooks in `./notebooks/` after following the installation instructions, remember to install your kernel:
+```bash
+python -m ipykernel install --name your-env-name --user
+```
