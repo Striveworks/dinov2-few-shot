@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "photography-anlysis"
+name = "photography-analysis"
 version = "0.1.0"
 description = "Various tools and applications to analyze my photography."
 authors = ["Jake Bauer <j.bauer@nazo.ai>"]
