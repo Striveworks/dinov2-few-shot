@@ -19,6 +19,8 @@ torch = "^2.3.1"
 llama-index-core = "^0.10.55"
 llama-index-embeddings-huggingface = "^0.2.2"
 faiss-cpu = "^1.8.0.post1"
+transformers = "^4.42.4"
+torchvision = "^0.18.1"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.10.1"

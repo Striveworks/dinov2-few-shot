@@ -2,21 +2,22 @@ import torch
 import faiss
 
 from torch import nn
-from llama_index.core import VectorStoreIndex
 
 from typing import List
 
 
-class LLaMAIndexImageEncoder(nn.Module):
+class FaissIndexImageEncoder(nn.Module):
     """
-    Uses llama-index and a torch model to embed and store
+    Uses faiss and a torch model to embed and store
     its inferences.
     """
 
     def __init__(
         self,
         encoder: nn.Module = None,
-        llama_index_config: dict = None,
+        dimension: int = 0,
+        index_file_init: str = None,
+        index_file_out: str = None,
     ):
         """
         Parameters
@@ -24,14 +25,25 @@ class LLaMAIndexImageEncoder(nn.Module):
         encoder : nn.Module
           Outputs embeddings in the shape (N, E) where
           N is the batch size and E is the embedding dimension.
-        llama_index_config : dict
-          The configuration for the indexer
+        dimension : int
+          The dimension of the embeddings
+        index_file_init : str
+          The index file to start from if it exists.
+        index_file_out : str
+          The index file to write to.
         """
         super().__init__()
-        self.index_file = llama_index_config["index_file"]
-        self.dimension = llama_index_config["embedding_dimension"]
-        self.index = faiss.IndexFlatL2(self.dimension)
-        self.vector_store_index = VectorStoreIndex(self.index)
+
+        # TODO: clean up edge logic when an index file is specified
+        # to ensure dimensions are the same.
+
+        self.dimension = dimension
+        if index_file_init is None:
+            self.index = faiss.IndexFlatL2(self.dimension)
+        else:
+            self.index = faiss.read_index(index_file_init)
+        self.index_file_out = index_file_out
+        self.metadata = {}
 
     def forward(self, x: torch.Tensor, batch_files: List[str]):
         """
@@ -57,7 +69,7 @@ class LLaMAIndexImageEncoder(nn.Module):
 
     def store_embeddings(self, embeddings: torch.Tensor, batch_files: List[str]):
         """
-        Write a batch of embeddings.
+        Write a batch of embeddings to the index.
 
         Parameters
         ----------
@@ -67,4 +79,10 @@ class LLaMAIndexImageEncoder(nn.Module):
         batch_files : List[str]
           The filenames for the images corresponding to each embedding
         """
-        self.vector_store_index.add(embeddings.numpy())
+        self.index.add(embeddings.numpy())
+
+    def flush_to_file(self):
+        """
+        Flush the index to a flat file.
+        """
+        faiss.write_index(self.index, self.index_file_out)
