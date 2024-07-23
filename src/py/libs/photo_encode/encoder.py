@@ -1,9 +1,10 @@
 import torch
 import faiss
+import numpy as np
 
 from torch import nn
 
-from typing import List
+from typing import List, Union, Any, Callable
 
 
 class FaissIndexImageEncoder(nn.Module):
@@ -15,8 +16,6 @@ class FaissIndexImageEncoder(nn.Module):
     def __init__(
         self,
         encoder: nn.Module = None,
-        dimension: int = 0,
-        index_file_init: str = None,
         index_file_out: str = None,
     ):
         """
@@ -25,10 +24,6 @@ class FaissIndexImageEncoder(nn.Module):
         encoder : nn.Module
           Outputs embeddings in the shape (N, E) where
           N is the batch size and E is the embedding dimension.
-        dimension : int
-          The dimension of the embeddings
-        index_file_init : str
-          The index file to start from if it exists.
         index_file_out : str
           The index file to write to.
         """
@@ -37,15 +32,17 @@ class FaissIndexImageEncoder(nn.Module):
         # TODO: clean up edge logic when an index file is specified
         # to ensure dimensions are the same.
 
-        self.dimension = dimension
-        if index_file_init is None:
-            self.index = faiss.IndexFlatL2(self.dimension)
-        else:
-            self.index = faiss.read_index(index_file_init)
         self.index_file_out = index_file_out
         self.metadata = {}
+        self.encoder = encoder
+        self.current_embeddings = None
 
-    def forward(self, x: torch.Tensor, batch_files: List[str]):
+    def forward(
+        self,
+        x: Union[torch.Tensor, dict],
+        batch_files: List[str],
+        process_embeddings: Callable[Any, Any],
+    ):
         """
         Overload the forward method to store the
         embeddings with the indexer.
@@ -56,6 +53,8 @@ class FaissIndexImageEncoder(nn.Module):
           The input tensor
         batch_files : List[str]
           The filenames for the images corresponding to each embedding
+        process_embeddings : Callable[Any, Any]
+          Post-process the outputs
 
         Returns
         -------
@@ -63,26 +62,28 @@ class FaissIndexImageEncoder(nn.Module):
           The original output from the encoder model.
         """
         # Get the embedding predictions
-        out = super().forward(x)
-        self.store_embeddings(out, batch_files)
+        if isinstance(x, dict):
+            out = self.encoder.forward(**x)
+        else:
+            out = self.encoder.forward(x)
+        out_processed = process_embeddings(out)
+
+        # Keep a running list of our embeddings
+        if self.current_embeddings is None:
+            self.current_embeddings = out_processed
+        else:
+            self.current_embeddings = torch.cat(
+                (self.current_embeddings, out_processed)
+            )
         return out
 
-    def store_embeddings(self, embeddings: torch.Tensor, batch_files: List[str]):
-        """
-        Write a batch of embeddings to the index.
-
-        Parameters
-        ----------
-        embeddings : torch.Tensor
-          A tensor of shape (N, E) where N is the batch size and
-          E is the embedding dimension.
-        batch_files : List[str]
-          The filenames for the images corresponding to each embedding
-        """
-        self.index.add(embeddings.numpy())
-
-    def flush_to_file(self):
+    def flush_to_file(
+        self, dimension=1024, n_centroids=2, n_subquantizers=2, code_size=2
+    ):
         """
         Flush the index to a flat file.
+
+        TODO: clean up the training logic. Not currently functional.
         """
+        self.index.train(self.current_embeddings)
         faiss.write_index(self.index, self.index_file_out)
