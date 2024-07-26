@@ -36,6 +36,7 @@ class FaissIndexImageEncoder(nn.Module):
         self.metadata = {}
         self.encoder = encoder
         self.current_embeddings = None
+        self.current_files = None
 
     def forward(
         self,
@@ -70,11 +71,18 @@ class FaissIndexImageEncoder(nn.Module):
 
         # Keep a running list of our embeddings
         if self.current_embeddings is None:
-            self.current_embeddings = out_processed
+            self.current_embeddings = out_processed.cpu()
         else:
             self.current_embeddings = torch.cat(
-                (self.current_embeddings, out_processed)
+                (self.current_embeddings, out_processed.cpu())
             )
+
+        # Keep a running list of filenames
+        if self.current_files is None:
+            self.current_files = batch_files
+        else:
+            self.current_files += batch_files
+
         return out
 
     def flush_to_file(
