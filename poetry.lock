@@ -1371,6 +1371,23 @@ pyside6 = ["pyside6"]
 test = ["flaky", "ipyparallel", "pre-commit", "pytest (>=7.0)", "pytest-asyncio (>=0.23.5)", "pytest-cov", "pytest-timeout"]
 
 [[package]]
+name = "ipyplot"
+version = "1.1.2"
+description = "Simple package that leverages IPython and HTML for more efficient, reach and interactive plotting of images in Jupyter Notebooks"
+optional = false
+python-versions = "*"
+files = [
+    {file = "ipyplot-1.1.2-py3-none-any.whl", hash = "sha256:a62417a99994b4c324fbbdd9fd36741372f7908ae17e58f70dbb656139f53c2a"},
+    {file = "ipyplot-1.1.2.tar.gz", hash = "sha256:66121c80bb5af645e65a60787a653f16f8badc1b794da03dbe1f135fb9051c6e"},
+]
+
+[package.dependencies]
+IPython = "*"
+numpy = "*"
+pillow = "*"
+shortuuid = "*"
+
+[[package]]
 name = "ipython"
 version = "8.12.3"
 description = "IPython: Productive Interactive Computing"
@@ -4352,6 +4369,17 @@ doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "pygments-
 test = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "importlib-metadata", "ini2toml[lite] (>=0.14)", "jaraco.develop (>=7.21)", "jaraco.envs (>=2.2)", "jaraco.path (>=3.2.0)", "jaraco.test", "mypy (==1.10.0)", "packaging (>=23.2)", "pip (>=19.1)", "pyproject-hooks (!=1.1)", "pytest (>=6,!=8.1.*)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-home (>=0.5)", "pytest-mypy", "pytest-perf", "pytest-ruff (<0.4)", "pytest-ruff (>=0.2.1)", "pytest-ruff (>=0.3.2)", "pytest-subprocess", "pytest-timeout", "pytest-xdist (>=3)", "tomli", "tomli-w (>=1.0.0)", "virtualenv (>=13.0.0)", "wheel"]
 
 [[package]]
+name = "shortuuid"
+version = "1.0.13"
+description = "A generator library for concise, unambiguous and URL-safe UUIDs."
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "shortuuid-1.0.13-py3-none-any.whl", hash = "sha256:a482a497300b49b4953e15108a7913244e1bb0d41f9d332f5e9925dba33a3c5a"},
+    {file = "shortuuid-1.0.13.tar.gz", hash = "sha256:3bb9cf07f606260584b1df46399c0b87dd84773e7b25912b7e391e30797c5e72"},
+]
+
+[[package]]
 name = "six"
 version = "1.16.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -5356,4 +5384,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<4.0"
-content-hash = "be87d2bdd1da9b30b248618c4137d300140dbf02ec5e4df1520b3e5dea53877d"
+content-hash = "1e15f5de5088256f8a36b084ca690069a295199e0f5634d7358d2ccc10d72734"

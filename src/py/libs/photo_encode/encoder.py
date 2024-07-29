@@ -3,6 +3,7 @@ import faiss
 import numpy as np
 
 from torch import nn
+from copy import deepcopy
 
 from typing import List, Union, Any, Callable
 
@@ -79,7 +80,7 @@ class FaissIndexImageEncoder(nn.Module):
 
         # Keep a running list of filenames
         if self.current_files is None:
-            self.current_files = batch_files
+            self.current_files = deepcopy(batch_files)
         else:
             self.current_files += batch_files
 
