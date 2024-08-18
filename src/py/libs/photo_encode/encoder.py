@@ -43,7 +43,7 @@ class FaissIndexImageEncoder(nn.Module):
         self,
         x: Union[torch.Tensor, dict],
         batch_files: List[str],
-        process_embeddings: Callable[Any, Any],
+        process_embeddings: Callable[[Any], Any],
     ):
         """
         Overload the forward method to store the

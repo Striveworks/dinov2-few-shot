@@ -1,0 +1,21 @@
+# Use an official Python image as the base image
+FROM python:3.10-slim
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Install Poetry
+RUN pip install --no-cache-dir poetry
+
+# Copy the pyproject.toml and poetry.lock files
+COPY pyproject.toml poetry.lock* /app/
+
+# Install dependencies with Poetry
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-root --no-interaction --no-ansi
+
+# Copy the application code
+COPY . /app
+
+# Set the command to run the application
+CMD ["python", "demo.py", "/app/server_configs/config.json"]

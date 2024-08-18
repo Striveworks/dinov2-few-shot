@@ -1,0 +1,32 @@
+version: "3.0"
+services:
+  pgvector:
+    image: ankane/pgvector
+    container_name: pgvector
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: vector_db
+    ports:
+      - "5432:5432"
+
+  mlserver:
+    image: seldonio/mlserver:1.6.0-huggingface
+    container_name: mlserver
+    volumes:
+      - ./model:/models/image-embedder
+    environment:
+      - MLSERVER_MODELS_DIR=/models
+    ports:
+      - "8080:8080"
+
+  photo_sampler:
+    build:
+      dockerfile: Containerfile
+      context: .
+    container_name: photo_sampler
+    ports:
+      - "7860:7860"
+    depends_on:
+      - mlserver
+      - pgvector
