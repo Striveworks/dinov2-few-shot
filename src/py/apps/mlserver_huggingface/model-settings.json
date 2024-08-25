@@ -1,0 +1,13 @@
+{
+    "name": "image-embedder",
+    "implementation": "mlserver_huggingface.HuggingFaceRuntime",
+    "parameters": {
+      "extra": {
+        "task": "feature-extraction",
+        "pretrained_model": "facebook/dinov2-base",
+        "revision": "main",
+        "framework": "pt",
+        "batch_size": 8
+      }
+    }
+  }

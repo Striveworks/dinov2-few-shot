@@ -11,12 +11,13 @@ services:
       - "5432:5432"
 
   mlserver:
-    image: seldonio/mlserver:1.6.0-huggingface
+    # image: seldonio/mlserver:1.6.0-huggingface
+    build:
+      dockerfile: ../mlserver_huggingface/Containerfile
+      context: .
+      args:
+        MLSERVER_HOME: ${MLSERVER_HOME}
     container_name: mlserver
-    volumes:
-      - ./model:/models/image-embedder
-    environment:
-      - MLSERVER_MODELS_DIR=/models
     ports:
       - "8080:8080"
 
