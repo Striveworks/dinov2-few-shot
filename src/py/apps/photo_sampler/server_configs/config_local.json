@@ -1,13 +1,13 @@
 {
     "postgresql": {
-        "host": "pgvector",
+        "host": "0.0.0.0",
         "port": 5432,
         "database": "vector_db",
         "user": "user",
         "password": "password"
     },
     "mlserver": {
-        "endpoint": "http://mlserver:8080/v2/models/image-embedder/infer"
+        "endpoint": "http://0.0.0.0:8080/v2/models/image-embedder/infer"
     },
     "vector_dimension": 512
 }

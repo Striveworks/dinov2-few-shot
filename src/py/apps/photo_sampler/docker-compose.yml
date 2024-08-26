@@ -21,13 +21,13 @@ services:
     ports:
       - "8080:8080"
 
-  photo_sampler:
-    build:
-      dockerfile: Containerfile
-      context: .
-    container_name: photo_sampler
-    ports:
-      - "7860:7860"
-    depends_on:
-      - mlserver
-      - pgvector
+  # photo_sampler:
+  #   build:
+  #     dockerfile: Containerfile
+  #     context: .
+  #   container_name: photo_sampler
+  #   ports:
+  #     - "7860:7860"
+  #   depends_on:
+  #     - mlserver
+  #     - pgvector

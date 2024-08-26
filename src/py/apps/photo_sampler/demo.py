@@ -4,10 +4,33 @@ import requests
 import numpy as np
 import json
 import sys
-import psycopg2
-from psycopg2.extras import execute_values
+import base64
+
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Float,
+    Integer,
+    String,
+    ARRAY,
+    delete,
+    text,
+)
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
+from PIL import Image
+
+Base = declarative_base()
+
+
+class ImageEmbedding(Base):
+    __tablename__ = "image_embeddings"
+
+    id = Column(Integer, primary_key=True)
+    image_path = Column(String, unique=True, nullable=False)
+    embedding = Column(ARRAY(Float), nullable=False)
 
 
 def load_config(config_path: str) -> dict:
@@ -31,42 +54,38 @@ def load_config(config_path: str) -> dict:
 
 def initialize_pgvector(config: dict):
     """
-    Initialize the connection to the PostgreSQL database with pgvector extension.
+    Initialize the connection to the PostgreSQL database with SQLAlchemy.
 
     Parameters
     ----------
     config : dict
         PostgreSQL configuration settings.
     """
-    global conn, cursor
-    conn = psycopg2.connect(
-        host=config["postgresql"]["host"],
-        port=config["postgresql"]["port"],
-        database=config["postgresql"]["database"],
-        user=config["postgresql"]["user"],
-        password=config["postgresql"]["password"],
-    )
-    cursor = conn.cursor()
+    global Session, engine
 
-    # Create table for storing image embeddings if it doesn't exist
-    cursor.execute(
-        f"""
-    CREATE TABLE IF NOT EXISTS image_embeddings (
-        id SERIAL PRIMARY KEY,
-        image_path TEXT UNIQUE,
-        embedding VECTOR({config['vector_dimension']})
-    );
-    """
-    )
-    conn.commit()
+    db_url = f"postgresql+psycopg2://{config['postgresql']['user']}:{config['postgresql']['password']}@{config['postgresql']['host']}:{config['postgresql']['port']}/{config['postgresql']['database']}"
+    engine = create_engine(db_url)
+
+    # Create the table for storing image embeddings if it doesn't exist
+    Base.metadata.create_all(engine)
+
+    # Create a configured "Session" class
+    Session = sessionmaker(bind=engine)
+
+    # Create the vector extension
+    with Session() as session:
+        with session.begin():
+            session.execute(text("CREATE EXTENSION IF NOT EXISTS VECTOR;"))
 
 
 def clear_database():
     """
     Clear the image_embeddings table in the database.
     """
-    cursor.execute("DELETE FROM image_embeddings;")
-    conn.commit()
+    session = Session()
+    session.query(ImageEmbedding).delete()
+    session.commit()
+    session.close()
 
 
 def get_embeddings(image_paths: List[str], mlserver_endpoint: str) -> List[np.ndarray]:
@@ -90,7 +109,16 @@ def get_embeddings(image_paths: List[str], mlserver_endpoint: str) -> List[np.nd
 
     for i in range(0, len(image_paths), batch_size):
         batch = image_paths[i : i + batch_size]
-        images = [open(image, "rb").read() for image in batch]
+        import pdb
+
+        pdb.set_trace()
+
+        # TODO: We need to apply the DinoV2 preprocessor. We should also resize images
+        # for the gallery.
+
+        images = [
+            base64.b64encode(Image.open(image).tobytes()).decode() for image in batch
+        ]
 
         response = requests.post(mlserver_endpoint, json={"instances": images})
         batch_embeddings = response.json()["predictions"]
@@ -120,21 +148,20 @@ def process_images(images: List[gr.File], mlserver_endpoint: str) -> List[str]:
     # Clear the database before inserting new vectors
     clear_database()
 
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=4) as executor:
         embeddings = list(
             executor.map(
                 lambda paths: get_embeddings(paths, mlserver_endpoint), [image_paths]
             )
         )
 
-    # Store embeddings in PostgreSQL
-    data = [(path, embedding) for path, embedding in zip(image_paths, embeddings)]
-    execute_values(
-        cursor,
-        "INSERT INTO image_embeddings (image_path, embedding) VALUES %s ON CONFLICT (image_path) DO NOTHING",
-        data,
-    )
-    conn.commit()
+    # Store embeddings in PostgreSQL using SQLAlchemy
+    session = Session()
+    for path, embedding in zip(image_paths, embeddings):
+        image_embedding = ImageEmbedding(image_path=path, embedding=embedding)
+        session.add(image_embedding)
+    session.commit()
+    session.close()
 
     return image_paths
 
@@ -153,23 +180,25 @@ def display_similar_images(image_path: str) -> List[str]:
     List[str]
         A list of paths to the top 10 similar images.
     """
-    cursor.execute(
-        "SELECT embedding FROM image_embeddings WHERE image_path = %s", (image_path,)
-    )
-    query_embedding = cursor.fetchone()[0]
+    session = Session()
 
-    cursor.execute(
-        """
+    query_embedding = (
+        session.query(ImageEmbedding).filter_by(image_path=image_path).first().embedding
+    )
+
+    # Use the SQLAlchemy vector similarity query (assuming pgvector extension)
+    similar_images = session.execute(
+        f"""
     SELECT image_path
     FROM image_embeddings
-    ORDER BY embedding <-> %s
+    ORDER BY embedding <-> ARRAY{query_embedding}
     LIMIT 10;
-    """,
-        (query_embedding,),
-    )
+    """
+    ).fetchall()
 
-    similar_image_paths = [row[0] for row in cursor.fetchall()]
-    return similar_image_paths
+    session.close()
+
+    return [row[0] for row in similar_images]
 
 
 def update_gallery(image_input: List[gr.File]) -> List[str]:
@@ -205,20 +234,29 @@ if __name__ == "__main__":
     # Gradio Interface
     with gr.Blocks() as demo:
         with gr.Row():
-            image_input = gr.File(type="file", file_count="directory")
+            image_input = gr.File(type="filepath", file_count="multiple", height=256)
             gallery = gr.Gallery()
             process_button = gr.Button("Process")
 
         with gr.Row():
             similar_images_gallery = gr.Gallery()
 
+        upload_progress = gr.Progress(track_tqdm=True)
+        image_input.upload(
+            fn=update_gallery,
+            inputs=[image_input],
+            outputs=gallery,
+            show_progress="full",
+        )
+
         process_button.click(
             fn=lambda images: process_images(images, config["mlserver"]["endpoint"]),
             inputs=image_input,
             outputs=gallery,
+            show_progress=True,
         )
         gallery.select(
             fn=display_similar_images, inputs=gallery, outputs=similar_images_gallery
         )
 
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
