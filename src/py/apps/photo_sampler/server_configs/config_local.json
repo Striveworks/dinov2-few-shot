@@ -7,7 +7,7 @@
         "password": "password"
     },
     "mlserver": {
-        "endpoint": "http://0.0.0.0:8080/v2/models/image-embedder/infer"
+        "endpoint": "http://0.0.0.0:8080/v2/models/dinov2/infer"
     },
     "vector_dimension": 512
 }

@@ -104,23 +104,38 @@ def get_embeddings(image_paths: List[str], mlserver_endpoint: str) -> List[np.nd
     List[np.ndarray]
         A list of embeddings for the provided images.
     """
-    batch_size = 8
+    batch_size = 2
     embeddings = []
 
     for i in range(0, len(image_paths), batch_size):
         batch = image_paths[i : i + batch_size]
-        import pdb
-
-        pdb.set_trace()
 
         # TODO: We need to apply the DinoV2 preprocessor. We should also resize images
         # for the gallery.
 
+        # images = [
+        #     base64.b64encode(Image.open(image).tobytes()).decode() for image in batch
+        # ]
         images = [
-            base64.b64encode(Image.open(image).tobytes()).decode() for image in batch
+            np.array(Image.open(image).resize((224,224))) for image in batch
         ]
+        images_np = np.array(images)
 
-        response = requests.post(mlserver_endpoint, json={"instances": images})
+        payload = {
+            "inputs": [
+                {
+                    "name": "input",
+                    "shape": images_np.shape,
+                    "datatype": "UINT8",
+                    "data": images_np.tolist()
+                }
+            ]
+        }
+        # response = requests.post(mlserver_endpoint, json={"instances": images})
+        import pdb
+
+        pdb.set_trace()
+        response = requests.post(mlserver_endpoint, json=payload)
         batch_embeddings = response.json()["predictions"]
         embeddings.extend(batch_embeddings)
 

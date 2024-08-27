@@ -1,6 +1,8 @@
 # Start from a base Python image
 FROM python:3.10-slim
 
+# Set workdir
+WORKDIR /app
 
 # Install necessary packages
 RUN apt-get update && apt-get install -y \
@@ -10,11 +12,13 @@ RUN apt-get update && apt-get install -y \
 # Install MLServer and the Huggingface runtime
 RUN pip install mlserver \
     mlserver-huggingface \
-    tf-keras
+    tf-keras 
+    
+RUN pip install "numpy<1.26"
 
 # Copy the model configuration files
 COPY mlserver_settings/settings.json /opt/mlserver/settings.json
-COPY model/model-settings.json /model/model-settings.json
+COPY models/ /app
 
 # Define the entrypoint for the container to run MLServer
-ENTRYPOINT ["mlserver", "start", "/model/model-settings.json"]
+ENTRYPOINT ["mlserver", "start", "."]
