@@ -1,10 +1,9 @@
 import gradio as gr
-import os
-import requests
 import numpy as np
 import json
 import sys
-import base64
+import torch
+import io
 
 from sqlalchemy import (
     create_engine,
@@ -18,9 +17,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from concurrent.futures import ThreadPoolExecutor
+from transformers import AutoImageProcessor, AutoModel
+
 from typing import List
 from PIL import Image
+from tqdm import tqdm
 
 Base = declarative_base()
 
@@ -28,7 +29,7 @@ Base = declarative_base()
 class ImageEmbedding(Base):
     __tablename__ = "image_embeddings"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     image_path = Column(String, unique=True, nullable=False)
     embedding = Column(ARRAY(Float), nullable=False)
 
@@ -88,107 +89,62 @@ def clear_database():
     session.close()
 
 
-def get_embeddings(image_paths: List[str], mlserver_endpoint: str) -> List[np.ndarray]:
-    """
-    Get embeddings for a batch of images by sending them to the MLServer.
+def process_images(image_files: list) -> tuple:
+    """Process images to extract embeddings and store them in the database.
 
     Parameters
     ----------
-    image_paths : List[str]
-        A list of image file paths to be processed.
-    mlserver_endpoint : str
-        The MLServer endpoint for model inference.
+    image_files : list
+        List of uploaded image files.
 
     Returns
     -------
-    List[np.ndarray]
-        A list of embeddings for the provided images.
+    tuple
+        Tuple containing the list of processed images and their embeddings.
     """
-    batch_size = 2
-    embeddings = []
-
-    for i in range(0, len(image_paths), batch_size):
-        batch = image_paths[i : i + batch_size]
-
-        # TODO: We need to apply the DinoV2 preprocessor. We should also resize images
-        # for the gallery.
-
-        # images = [
-        #     base64.b64encode(Image.open(image).tobytes()).decode() for image in batch
-        # ]
-        images = [
-            np.array(Image.open(image).resize((224,224))) for image in batch
-        ]
-        images_np = np.array(images)
-
-        payload = {
-            "inputs": [
-                {
-                    "name": "input",
-                    "shape": images_np.shape,
-                    "datatype": "UINT8",
-                    "data": images_np.tolist()
-                }
-            ]
-        }
-        # response = requests.post(mlserver_endpoint, json={"instances": images})
-        import pdb
-
-        pdb.set_trace()
-        response = requests.post(mlserver_endpoint, json=payload)
-        batch_embeddings = response.json()["predictions"]
-        embeddings.extend(batch_embeddings)
-
-    return embeddings
-
-
-def process_images(images: List[gr.File], mlserver_endpoint: str) -> List[str]:
-    """
-    Process uploaded images to obtain embeddings, clear the database, and store them in PostgreSQL.
-
-    Parameters
-    ----------
-    images : List[gr.File]
-        A list of uploaded images.
-    mlserver_endpoint : str
-        The MLServer endpoint for model inference.
-
-    Returns
-    -------
-    List[str]
-        A list of paths to the processed images.
-    """
-    image_paths = [image.name for image in images]
-
-    # Clear the database before inserting new vectors
-    clear_database()
-
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        embeddings = list(
-            executor.map(
-                lambda paths: get_embeddings(paths, mlserver_endpoint), [image_paths]
-            )
-        )
-
-    # Store embeddings in PostgreSQL using SQLAlchemy
     session = Session()
-    for path, embedding in zip(image_paths, embeddings):
-        image_embedding = ImageEmbedding(image_path=path, embedding=embedding)
+
+    # Clear the database
+    session.execute(delete(ImageEmbedding))
+    session.commit()
+    processor = AutoImageProcessor.from_pretrained("facebook/dinov2-large")
+    model = AutoModel.from_pretrained("facebook/dinov2-large").eval()
+    embeddings = []
+    images = []
+
+    for image_file in tqdm(image_files, desc="Processing Images"):
+        image = Image.open(image_file)
+        images.append(image)
+
+        # Preprocess image and get embedding
+        inputs = processor(images=image, return_tensors="pt")
+        with torch.no_grad():
+            embedding = (
+                model(**inputs).last_hidden_state.mean(dim=1).cpu().numpy().flatten()
+            )
+        embeddings.append(embedding)
+
+        # Store vectors
+        image_embedding = ImageEmbedding(
+            image_path=image_file.name,
+            embedding=embedding.tolist(),
+        )
         session.add(image_embedding)
+
     session.commit()
     session.close()
 
-    return image_paths
+    return images, embeddings
 
 
-def display_similar_images(image_path: str) -> List[str]:
+def display_similar_images(image_paths: List[str]) -> List[str]:
     """
     Display the top 10 most similar images from PostgreSQL based on the selected image.
 
     Parameters
     ----------
-    image_path : str
-        The path of the selected image.
+    image_paths : List[str]
+        The gallery.
 
     Returns
     -------
@@ -196,11 +152,14 @@ def display_similar_images(image_path: str) -> List[str]:
         A list of paths to the top 10 similar images.
     """
     session = Session()
+    import pdb
+
+    pdb.set_trace()
+    image_path = image_paths[0]
 
     query_embedding = (
         session.query(ImageEmbedding).filter_by(image_path=image_path).first().embedding
     )
-
     # Use the SQLAlchemy vector similarity query (assuming pgvector extension)
     similar_images = session.execute(
         f"""
@@ -265,11 +224,13 @@ if __name__ == "__main__":
         )
 
         process_button.click(
-            fn=lambda images: process_images(images, config["mlserver"]["endpoint"]),
+            fn=lambda images: process_images(images),
             inputs=image_input,
-            outputs=gallery,
+            # outputs=gallery,
             show_progress=True,
         )
+
+        # TODO: fix how we get the selected image
         gallery.select(
             fn=display_similar_images, inputs=gallery, outputs=similar_images_gallery
         )

@@ -6,8 +6,5 @@
         "user": "user",
         "password": "password"
     },
-    "mlserver": {
-        "endpoint": "http://mlserver:8080/v2/models/image-embedder/infer"
-    },
     "vector_dimension": 512
 }

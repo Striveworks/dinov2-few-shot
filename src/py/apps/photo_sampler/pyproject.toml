@@ -5,12 +5,17 @@ description = "Server to sample photos."
 authors = ["Jake Bauer <j.bauer@nazo.ai>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.11,<3.12"
 gradio = "^4.41.0"
 psycopg2-binary = "^2.9.9"
 black = "^24.8.0"
 sqlalchemy = "^2.0.32"
-
+numpy = "<1.26"
+mlserver-huggingface = "^1.6.0"
+tf-keras = "^2.17.0"
+transformers = ">=4.30,<5.0"
+mlserver = "^1.6.0"
+torch = "^2.4.0"
 
 [build-system]
 requires = ["poetry-core"]

@@ -10,16 +10,16 @@ services:
     ports:
       - "5432:5432"
 
-  mlserver:
-    # image: seldonio/mlserver:1.6.0-huggingface
-    build:
-      dockerfile: ../mlserver_huggingface/Containerfile
-      context: .
-      args:
-        MLSERVER_HOME: ${MLSERVER_HOME}
-    container_name: mlserver
-    ports:
-      - "8080:8080"
+  # mlserver:
+  #   # image: seldonio/mlserver:1.6.0-huggingface
+  #   build:
+  #     dockerfile: ../mlserver_huggingface/Containerfile
+  #     context: .
+  #     args:
+  #       MLSERVER_HOME: ${MLSERVER_HOME}
+  #   container_name: mlserver
+  #   ports:
+  #     - "8080:8080"
 
   # photo_sampler:
   #   build:
