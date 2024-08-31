@@ -3,18 +3,17 @@ import numpy as np
 import json
 import sys
 import torch
-import io
 
 from sqlalchemy import (
     create_engine,
     Column,
-    Float,
     Integer,
     String,
-    ARRAY,
     delete,
     text,
 )
+
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from transformers import AutoImageProcessor, AutoModel
@@ -31,7 +30,7 @@ class ImageEmbedding(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     image_path = Column(String, unique=True, nullable=False)
-    embedding = Column(ARRAY(Float), nullable=False)
+    embedding = Column(Vector(1024))
 
 
 def load_config(config_path: str) -> dict:
@@ -67,11 +66,14 @@ def initialize_pgvector(config: dict):
     db_url = f"postgresql+psycopg2://{config['postgresql']['user']}:{config['postgresql']['password']}@{config['postgresql']['host']}:{config['postgresql']['port']}/{config['postgresql']['database']}"
     engine = create_engine(db_url)
 
-    # Create the table for storing image embeddings if it doesn't exist
-    Base.metadata.create_all(engine)
-
     # Create a configured "Session" class
     Session = sessionmaker(bind=engine)
+
+    # Clear existing data
+    clear_database(hard_delete=config.get("hard_delete") or True)
+
+    # Create the table for storing image embeddings if it doesn't exist
+    Base.metadata.create_all(engine)
 
     # Create the vector extension
     with Session() as session:
@@ -79,12 +81,20 @@ def initialize_pgvector(config: dict):
             session.execute(text("CREATE EXTENSION IF NOT EXISTS VECTOR;"))
 
 
-def clear_database():
+def clear_database(hard_delete: bool = True):
     """
     Clear the image_embeddings table in the database.
+
+    Parameters
+    ----------
+    hard_delete : bool
+      If true, tables will be dropped instead of just entries.
     """
     session = Session()
-    session.query(ImageEmbedding).delete()
+    if hard_delete:
+        Base.metadata.drop_all(engine)
+    else:
+        session.query(ImageEmbedding).delete()
     session.commit()
     session.close()
 
@@ -137,14 +147,16 @@ def process_images(image_files: list) -> tuple:
     return images, embeddings
 
 
-def display_similar_images(image_paths: List[str]) -> List[str]:
+# def display_similar_images(image_paths: List[str]) -> List[str]:
+def display_similar_images(selection: gr.SelectData) -> List[str]:
     """
     Display the top 10 most similar images from PostgreSQL based on the selected image.
 
     Parameters
     ----------
-    image_paths : List[str]
-        The gallery.
+    selection : gr.SelectData
+        The selection determined by the gradio state at the time
+        this function is called.
 
     Returns
     -------
@@ -152,27 +164,25 @@ def display_similar_images(image_paths: List[str]) -> List[str]:
         A list of paths to the top 10 similar images.
     """
     session = Session()
-    import pdb
-
-    pdb.set_trace()
-    image_path = image_paths[0]
+    image_path = selection.value["image"]["path"]
 
     query_embedding = (
         session.query(ImageEmbedding).filter_by(image_path=image_path).first().embedding
     )
-    # Use the SQLAlchemy vector similarity query (assuming pgvector extension)
-    similar_images = session.execute(
-        f"""
-    SELECT image_path
-    FROM image_embeddings
-    ORDER BY embedding <-> ARRAY{query_embedding}
-    LIMIT 10;
-    """
-    ).fetchall()
-
+    # Use the SQLAlchemy l2 vector similarity query (assuming pgvector extension)
+    similar_images = (
+        session.query(
+            ImageEmbedding,
+            ImageEmbedding.embedding.l2_distance(query_embedding).label("distance"),
+        )
+        .order_by("distance")
+        .limit(10)
+        .all()
+    )
+    similar_image_paths = [x[0].image_path for x in similar_images]
     session.close()
 
-    return [row[0] for row in similar_images]
+    return similar_image_paths
 
 
 def update_gallery(image_input: List[gr.File]) -> List[str]:
@@ -231,8 +241,10 @@ if __name__ == "__main__":
         )
 
         # TODO: fix how we get the selected image
+        # gallery.select(
+        #     fn=display_similar_images, inputs=gallery, outputs=similar_images_gallery
+        # )
         gallery.select(
-            fn=display_similar_images, inputs=gallery, outputs=similar_images_gallery
+            fn=display_similar_images, inputs=None, outputs=similar_images_gallery
         )
-
     demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
