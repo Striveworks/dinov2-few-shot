@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "photo-sampler"
+name = "photo_sampler"
 version = "0.1.0"
 description = "Server to sample photos."
 authors = ["Jake Bauer <j.bauer@nazo.ai>"]
@@ -17,6 +17,7 @@ transformers = ">=4.30,<5.0"
 mlserver = "^1.6.0"
 torch = "^2.4.0"
 pgvector = "^0.3.2"
+scikit-learn = "^1.5.1"
 
 [build-system]
 requires = ["poetry-core"]

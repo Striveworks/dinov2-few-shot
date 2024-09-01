@@ -6,15 +6,10 @@ import torch
 
 from sqlalchemy import (
     create_engine,
-    Column,
-    Integer,
-    String,
     delete,
     text,
 )
 
-from pgvector.sqlalchemy import Vector
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from transformers import AutoImageProcessor, AutoModel
 
@@ -22,15 +17,8 @@ from typing import List
 from PIL import Image
 from tqdm import tqdm
 
-Base = declarative_base()
-
-
-class ImageEmbedding(Base):
-    __tablename__ = "image_embeddings"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    image_path = Column(String, unique=True, nullable=False)
-    embedding = Column(Vector(1024))
+from photo_sampler.model import ImageEmbedding, Base
+from photo_sampler.cluster import cluster_embeddings, select_sample
 
 
 def load_config(config_path: str) -> dict:
@@ -99,13 +87,34 @@ def clear_database(hard_delete: bool = True):
     session.close()
 
 
-def process_images(image_files: list) -> tuple:
+def reset_application():
+    """Reset the entire application state."""
+    session = Session()
+
+    # Clear the database
+    session.execute(delete(ImageEmbedding))
+    session.commit()
+    session.close()
+
+    # Return empty outputs for galleries
+    return (
+        [],
+        [],
+        0.5,
+    )  # Return an empty list for both galleries and reset granularity slider
+
+
+def process_images(
+    image_files: list, n_clusters: int = 10, pr=gr.Progress(track_tqdm=True)
+) -> tuple:
     """Process images to extract embeddings and store them in the database.
 
     Parameters
     ----------
     image_files : list
         List of uploaded image files.
+    n_clusters : int
+        The number of clusters to use for moments
 
     Returns
     -------
@@ -122,7 +131,8 @@ def process_images(image_files: list) -> tuple:
     embeddings = []
     images = []
 
-    for image_file in tqdm(image_files, desc="Processing Images"):
+    # for image_file in tqdm(image_files, desc="Processing Images"):
+    for image_file in pr.tqdm(image_files, desc="Processing Images"):
         image = Image.open(image_file)
         images.append(image)
 
@@ -144,7 +154,9 @@ def process_images(image_files: list) -> tuple:
     session.commit()
     session.close()
 
-    return images, embeddings
+    # Do the clustering
+    clusters = cluster_embeddings(embeddings, n_clusters=n_clusters)
+    return images, embeddings, clusters
 
 
 # def display_similar_images(image_paths: List[str]) -> List[str]:
@@ -185,7 +197,7 @@ def display_similar_images(selection: gr.SelectData) -> List[str]:
     return similar_image_paths
 
 
-def update_gallery(image_input: List[gr.File]) -> List[str]:
+def update_gallery(image_input: List[gr.File], granularity: float) -> List[str]:
     """
     Update the gallery with the paths of uploaded images.
 
@@ -200,7 +212,11 @@ def update_gallery(image_input: List[gr.File]) -> List[str]:
         A list of paths to the uploaded images.
     """
     image_paths = [img.name for img in image_input]
-    return image_paths
+    _, _, clusters = process_images(
+        image_input, n_clusters=int(granularity * len(image_paths))
+    )
+    sample = select_sample(image_paths, clusters)
+    return sample  # image_paths
 
 
 if __name__ == "__main__":
@@ -217,34 +233,56 @@ if __name__ == "__main__":
 
     # Gradio Interface
     with gr.Blocks() as demo:
+        gr.Markdown("# Image Exploration Application")
+        gr.Markdown(
+            "Use AI to explore the unique points in your image gallery and find high quality photos."
+        )
+        gr.Markdown("## Usage")
+        gr.Markdown(
+            """
+            Simply upload a folder with your images. Resize beforehand for best results. After upload, the 
+            images will be processed and unique moments will be entered into the gallery on the right. Select
+            an image to populate the bottom gallery with similar images. To reset the application, simply 
+            press reset on the bottom row and clear the upload box.
+            """
+        )
+        gr.Markdown("## Granularity Slider")
+        gr.Markdown("The ratio of unique moments to total images.")
         with gr.Row():
-            image_input = gr.File(type="filepath", file_count="multiple", height=256)
-            gallery = gr.Gallery()
-            process_button = gr.Button("Process")
+            granularity_slider = gr.Slider(
+                minimum=0, maximum=1, step=0.01, value=0.5, label="Granularity"
+            )
+
+        with gr.Row():
+            image_input = gr.Files(
+                type="filepath",
+                file_count="directory",
+                label="Upload Files",
+                height=512,
+            )
+            gallery = gr.Gallery(label="Cluster Centers")
 
         with gr.Row():
             similar_images_gallery = gr.Gallery()
 
-        upload_progress = gr.Progress(track_tqdm=True)
+        with gr.Row():
+            reset_button = gr.Button("Reset")
+
         image_input.upload(
             fn=update_gallery,
-            inputs=[image_input],
+            inputs=[image_input, granularity_slider],
             outputs=gallery,
             show_progress="full",
+            concurrency_limit=10,
         )
 
-        process_button.click(
-            fn=lambda images: process_images(images),
-            inputs=image_input,
-            # outputs=gallery,
-            show_progress=True,
-        )
-
-        # TODO: fix how we get the selected image
-        # gallery.select(
-        #     fn=display_similar_images, inputs=gallery, outputs=similar_images_gallery
-        # )
         gallery.select(
             fn=display_similar_images, inputs=None, outputs=similar_images_gallery
+        )
+
+        reset_button.click(
+            fn=reset_application,
+            inputs=None,
+            outputs=[gallery, similar_images_gallery, granularity_slider],
         )
     demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
