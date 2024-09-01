@@ -104,6 +104,12 @@ def reset_application():
     )  # Return an empty list for both galleries and reset granularity slider
 
 
+def reprocess_gallery(image_files, granularity):
+    """Rerun the update_gallery function after resetting the database."""
+    reset_application()
+    return update_gallery(image_files, granularity)
+
+
 def process_images(
     image_files: list, n_clusters: int = 10, pr=gr.Progress(track_tqdm=True)
 ) -> tuple:
@@ -126,8 +132,11 @@ def process_images(
     # Clear the database
     session.execute(delete(ImageEmbedding))
     session.commit()
+
+    # Get model
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     processor = AutoImageProcessor.from_pretrained("facebook/dinov2-large")
-    model = AutoModel.from_pretrained("facebook/dinov2-large").eval()
+    model = AutoModel.from_pretrained("facebook/dinov2-large").eval().to(device)
     embeddings = []
     images = []
 
@@ -138,6 +147,7 @@ def process_images(
 
         # Preprocess image and get embedding
         inputs = processor(images=image, return_tensors="pt")
+        inputs["pixel_values"] = inputs["pixel_values"].to(device)
         with torch.no_grad():
             embedding = (
                 model(**inputs).last_hidden_state.mean(dim=1).cpu().numpy().flatten()
@@ -243,7 +253,8 @@ if __name__ == "__main__":
             Simply upload a folder with your images. Resize beforehand for best results. After upload, the 
             images will be processed and unique moments will be entered into the gallery on the right. Select
             an image to populate the bottom gallery with similar images. To reset the application, simply 
-            press reset on the bottom row and clear the upload box.
+            press reset on the bottom row and clear the upload box. To re-run with the same uploaded images
+            and a different granularity, press the reprocess button after resetting the application.
             """
         )
         gr.Markdown("## Granularity Slider")
@@ -267,6 +278,8 @@ if __name__ == "__main__":
 
         with gr.Row():
             reset_button = gr.Button("Reset")
+        with gr.Row():
+            reprocess_button = gr.Button("Reprocess")
 
         image_input.upload(
             fn=update_gallery,
@@ -274,6 +287,13 @@ if __name__ == "__main__":
             outputs=gallery,
             show_progress="full",
             concurrency_limit=10,
+        )
+
+        reprocess_button.click(
+            fn=reprocess_gallery,
+            inputs=[image_input, granularity_slider],
+            outputs=gallery,
+            show_progress=True,
         )
 
         gallery.select(
@@ -285,4 +305,5 @@ if __name__ == "__main__":
             inputs=None,
             outputs=[gallery, similar_images_gallery, granularity_slider],
         )
+    # Set share to False if running containerized
     demo.launch(server_name="0.0.0.0", server_port=7860, share=True)
