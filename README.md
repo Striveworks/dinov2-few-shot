@@ -32,8 +32,4 @@ python -m ipykernel install --name your-env-name --user
 
 ## Photo Sampler Server
 
-If you want to run the photo sampler server, the easiest way is to use the `docker_compose.yml` file and the provided Containerfile. Build the container from the `photo_sampler` directory and start all services with:
-```
-docker-compose up
-```
-For MLServer, make sure your ViT config is appropriately named and present in the folder that is mounted in the `docker-compose.yml`. Likewise, make sure your server config is present in `server_config/config.json`.
+See `src/py/apps/photo_sampler` for `README.md` instructions on how to use the similarity search server.
