@@ -50,6 +50,7 @@ def get_embeddings_and_labels(image_folder: str):
 
     # Walk over the photo directory
     with torch.no_grad():
+        import pdb; pdb.set_trace()
         image_paths = []
         labels = []
         class_names = os.listdir(image_folder)
