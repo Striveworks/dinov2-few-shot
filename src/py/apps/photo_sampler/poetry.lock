@@ -1328,19 +1328,19 @@ grpc = ["grpcio (>=1.44.0,<2.0.0.dev0)"]
 
 [[package]]
 name = "gradio"
-version = "4.42.0"
+version = "4.44.0"
 description = "Python library for easily interacting with trained machine learning models"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "gradio-4.42.0-py3-none-any.whl", hash = "sha256:fe97d5e99e7e26eb37b925f25b1c8f5aea3e6a23ed1ed4409ee4e306ce2fc58a"},
-    {file = "gradio-4.42.0.tar.gz", hash = "sha256:a64a8815b284d9fb0ffafe287dfb307c2044f530386fd7ab72fde985a268fd0c"},
+    {file = "gradio-4.44.0-py3-none-any.whl", hash = "sha256:1d358f2671fbc37b51fd0758ed9910b7047e978c961031d4b4ded068a07ef5ab"},
+    {file = "gradio-4.44.0.tar.gz", hash = "sha256:a2f8d1279da088f6715423aff13b83de471b8076c34c1a9a48136bad33753241"},
 ]
 
 [package.dependencies]
 aiofiles = ">=22.0,<24.0"
 anyio = ">=3.0,<5.0"
-fastapi = "*"
+fastapi = "<1.0"
 ffmpy = "*"
 gradio-client = "1.3.0"
 httpx = ">=0.24.1"
@@ -5550,4 +5550,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.12"
-content-hash = "66e630d123bfb13bd9ade70fe20ddd23b786e4990a80ad8d4a1a5626c8983554"
+content-hash = "5b6c6b3e0e06acf1f9009707ae570883a78a05ee1905ec1de9003f151a877f41"
